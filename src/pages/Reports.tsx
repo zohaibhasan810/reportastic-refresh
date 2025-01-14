@@ -9,15 +9,20 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon, Download, Search } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const Reports = () => {
   const [filterRobots, setFilterRobots] = useState(true);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>(["USA", "Canada"]);
   const [searchTerm, setSearchTerm] = useState("");
   const [date, setDate] = useState<Date | undefined>(new Date());
 
   const { data: links = [], refetch } = useQuery({
-    queryKey: ["links", filterRobots],
-    queryFn: () => fetchLinkStats(filterRobots),
+    queryKey: ["links", filterRobots, selectedCountries],
+    queryFn: () => fetchLinkStats({ 
+      filterRobots, 
+      countries: selectedCountries 
+    }),
   });
 
   useEffect(() => {
@@ -34,7 +39,7 @@ const Reports = () => {
 
   const exportData = (format: "csv" | "json") => {
     const data = format === "csv" 
-      ? `Name,Today,30 Day,Total\n${filteredLinks.map(l => `${l.name},${l.today},${l.thirtyDay},${l.total}`).join("\n")}`
+      ? `Name,Today,30 Day,Total,Country\n${filteredLinks.map(l => `${l.name},${l.today},${l.thirtyDay},${l.total},${l.country}`).join("\n")}`
       : JSON.stringify(filteredLinks, null, 2);
     
     const blob = new Blob([data], { type: format === "csv" ? "text/csv" : "application/json" });
@@ -60,6 +65,35 @@ const Reports = () => {
             >
               {filterRobots ? "Showing Human Traffic" : "Showing All Traffic"}
             </Button>
+            
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="usa"
+                checked={selectedCountries.includes("USA")}
+                onCheckedChange={(checked) => {
+                  setSelectedCountries(prev => 
+                    checked 
+                      ? [...prev, "USA"]
+                      : prev.filter(c => c !== "USA")
+                  );
+                }}
+              />
+              <label htmlFor="usa">USA</label>
+              
+              <Checkbox 
+                id="canada"
+                checked={selectedCountries.includes("Canada")}
+                onCheckedChange={(checked) => {
+                  setSelectedCountries(prev => 
+                    checked 
+                      ? [...prev, "Canada"]
+                      : prev.filter(c => c !== "Canada")
+                  );
+                }}
+              />
+              <label htmlFor="canada">Canada</label>
+            </div>
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -127,6 +161,9 @@ const Reports = () => {
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total
                   </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Country
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -148,6 +185,9 @@ const Reports = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
                       {link.total.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
+                      {link.country}
                     </td>
                   </tr>
                 ))}
