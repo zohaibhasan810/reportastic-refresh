@@ -25,8 +25,54 @@ interface LinklyHQClick {
   country_code: string;
 }
 
+interface LinklyHQLink {
+  id: string;
+  title: string;
+  url: string;
+}
+
 const API_BASE_URL = 'https://app.linklyhq.com/api/v1/workspace/144651';
-const API_KEY = '897678'; // Note: In production, this should be stored in environment variables
+const API_KEY = '897678';
+
+const fetchLinks = async (): Promise<LinklyHQLink[]> => {
+  const response = await fetch(`${API_BASE_URL}/list_links`, {
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json',
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch links: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+const fetchClicksForLink = async (
+  linkId: string, 
+  filters: LinklyFilters,
+  startDate: Date,
+  endDate: Date
+): Promise<LinklyHQClick[]> => {
+  const response = await fetch(`${API_BASE_URL}/clicks?` + new URLSearchParams({
+    link_id: linkId,
+    start: startDate.toISOString(),
+    from: endDate.toISOString(),
+    ...(filters.filterRobots && { bot: 'false' })
+  }), {
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json',
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch clicks for link ${linkId}: ${response.statusText}`);
+  }
+
+  return response.json();
+};
 
 export const fetchLinkStats = async (filters: LinklyFilters): Promise<LinkStats[]> => {
   try {
@@ -35,84 +81,52 @@ export const fetchLinkStats = async (filters: LinklyFilters): Promise<LinkStats[
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
-    // Fetch clicks from LinklyHQ API
-    const response = await fetch(`${API_BASE_URL}/clicks?` + new URLSearchParams({
-      start: thirtyDaysAgo.toISOString(),
-      from: today.toISOString(),
-      ...(filters.filterRobots && { bot: 'false' })
-    }), {
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json',
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`LinklyHQ API error: ${response.statusText}`);
-    }
-
-    const clicks: LinklyHQClick[] = await response.json();
-
-    // Process the clicks data to match our LinkStats interface
-    const linkMap = new Map<string, {
-      name: string;
-      clicks: LinklyHQClick[];
-      todayClicks: LinklyHQClick[];
-      thirtyDayClicks: LinklyHQClick[];
-    }>();
-
-    // Group clicks by link
-    clicks.forEach(click => {
-      if (!linkMap.has(click.link_id)) {
-        linkMap.set(click.link_id, {
-          name: click.link_title,
-          clicks: [],
-          todayClicks: [],
-          thirtyDayClicks: []
-        });
-      }
+    // First, fetch all links
+    const links = await fetchLinks();
+    
+    // Then, fetch clicks for each link
+    const statsPromises = links.map(async (link) => {
+      const clicks = await fetchClicksForLink(link.id, filters, thirtyDaysAgo, today);
       
-      const linkData = linkMap.get(click.link_id)!;
-      linkData.clicks.push(click);
+      // Process clicks for this link
+      const todayClicks = clicks.filter(click => 
+        new Date(click.created_at).toDateString() === today.toDateString()
+      );
 
-      // Check if click is from today
-      const clickDate = new Date(click.created_at);
-      const isToday = clickDate.toDateString() === today.toDateString();
-      if (isToday) {
-        linkData.todayClicks.push(click);
-      }
+      const thirtyDayClicks = clicks.filter(click => 
+        new Date(click.created_at) >= thirtyDaysAgo
+      );
 
-      // Check if click is within last 30 days
-      if (clickDate >= thirtyDaysAgo) {
-        linkData.thirtyDayClicks.push(click);
-      }
-    });
-
-    // Convert map to LinkStats array
-    const stats: LinkStats[] = Array.from(linkMap.entries()).map(([linkId, data]) => {
       // Generate sparkline data (last 7 days)
       const sparklineData = Array.from({ length: 7 }, (_, i) => {
         const date = new Date();
         date.setDate(date.getDate() - i);
         const dateStr = date.toDateString();
-        return data.clicks.filter(click => 
+        return clicks.filter(click => 
           new Date(click.created_at).toDateString() === dateStr
         ).length;
       }).reverse();
 
+      // If countries filter is applied, filter clicks by country
+      const filteredClicks = filters.countries?.length 
+        ? clicks.filter(click => filters.countries?.includes(click.country_code))
+        : clicks;
+
       return {
-        id: linkId,
-        name: data.name,
+        id: link.id,
+        name: link.title,
         sparklineData,
-        today: data.todayClicks.length,
-        thirtyDay: data.thirtyDayClicks.length,
-        total: data.clicks.length,
-        isRobot: false, // We're already filtering bots in the API call
-        country: data.clicks[0]?.country_code || 'Unknown'
+        today: todayClicks.length,
+        thirtyDay: thirtyDayClicks.length,
+        total: filteredClicks.length,
+        isRobot: false,
+        country: filteredClicks[0]?.country_code || 'Unknown'
       };
     });
 
+    const stats = await Promise.all(statsPromises);
     return stats;
+
   } catch (error) {
     console.error('Error fetching link statistics:', error);
     toast.error("Failed to fetch link statistics");
