@@ -25,7 +25,7 @@ interface LinklyHQClick {
   country_code: string;
 }
 
-const API_BASE_URL = 'https://app.linklyhq.com/api/v1';
+const API_BASE_URL = 'https://app.linklyhq.com/api/v1/workspace/144651';
 const API_KEY = '897678'; // Note: In production, this should be stored in environment variables
 
 export const fetchLinkStats = async (filters: LinklyFilters): Promise<LinkStats[]> => {
@@ -37,10 +37,9 @@ export const fetchLinkStats = async (filters: LinklyFilters): Promise<LinkStats[
 
     // Fetch clicks from LinklyHQ API
     const response = await fetch(`${API_BASE_URL}/clicks?` + new URLSearchParams({
-      date_from: thirtyDaysAgo.toISOString(),
-      date_to: today.toISOString(),
-      ...(filters.filterRobots && { is_bot: 'false' }),
-      ...(filters.countries?.length && { country_code: filters.countries.join(',') })
+      start: thirtyDaysAgo.toISOString(),
+      from: today.toISOString(),
+      ...(filters.filterRobots && { bot: 'false' })
     }), {
       headers: {
         'Authorization': `Bearer ${API_KEY}`,
