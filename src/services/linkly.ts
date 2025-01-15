@@ -48,8 +48,7 @@ interface LinklyHQLinksResponse {
 }
 
 const API_BASE_URL = 'https://app.linklyhq.com/api/v1/workspace/144651';
-const API_KEY = 'w+qgLG0yzgMgNQ9zQ==';
-const CSRF_TOKEN = 'figbLi8eAAoOPwU-HDAFKBU5QhsHGHcS0glXNQ-shjgRExwlgI-tb2aS';
+const API_KEY = 'w+22222==';
 
 const fetchLinks = async (): Promise<LinklyHQLink[]> => {
   const queryParams = new URLSearchParams({
@@ -61,7 +60,6 @@ const fetchLinks = async (): Promise<LinklyHQLink[]> => {
   const response = await fetch(`${API_BASE_URL}/list_links?${queryParams}`, {
     headers: {
       'Content-Type': 'application/json',
-      'x-csrf-token': CSRF_TOKEN,
       'accept': 'application/json'
     }
   });
@@ -80,17 +78,19 @@ const fetchClicksForLink = async (
   startDate: Date,
   endDate: Date
 ): Promise<LinklyHQClicksResponse> => {
-  const response = await fetch(`${API_BASE_URL}/clicks?` + new URLSearchParams({
+  const queryParams = new URLSearchParams({
     link_id: linkId.toString(),
-    start: startDate.toISOString(),
-    from: endDate.toISOString(),
-    ...(filters.filterRobots && { bot: 'false' })
-  }), {
-    headers: {
-      'Authorization': `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    }
+    start: startDate.toISOString().split('T')[0],
+    end: endDate.toISOString().split('T')[0],
+    bots: (!filters.filterRobots).toString(),
+    unique: 'false',
+    format: 'json',
+    timezone: 'America/New_York',
+    frequency: 'day',
+    api_key: API_KEY
   });
+
+  const response = await fetch(`${API_BASE_URL}/clicks?${queryParams}`);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch clicks for link ${linkId}: ${response.statusText}`);
