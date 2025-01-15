@@ -26,9 +26,25 @@ interface LinklyHQClick {
 }
 
 interface LinklyHQLink {
-  id: string;
-  title: string;
+  id: number;
+  name: string;
   url: string;
+  clicks_today: number;
+  clicks_thirty_days: number;
+  clicks_total: number;
+  sparkline: number[];
+  enabled: boolean;
+  deleted: boolean;
+}
+
+interface LinklyHQLinksResponse {
+  links: LinklyHQLink[];
+  page_number: number;
+  page_size: number;
+  total_entries: number;
+  total_pages: number;
+  total_rows: number;
+  workspace_link_count: number;
 }
 
 const API_BASE_URL = 'https://app.linklyhq.com/api/v1/workspace/144651';
@@ -46,17 +62,18 @@ const fetchLinks = async (): Promise<LinklyHQLink[]> => {
     throw new Error(`Failed to fetch links: ${response.statusText}`);
   }
 
-  return response.json();
+  const data: LinklyHQLinksResponse = await response.json();
+  return data.links.filter(link => !link.deleted && link.enabled);
 };
 
 const fetchClicksForLink = async (
-  linkId: string, 
+  linkId: number, 
   filters: LinklyFilters,
   startDate: Date,
   endDate: Date
 ): Promise<LinklyHQClick[]> => {
   const response = await fetch(`${API_BASE_URL}/clicks?` + new URLSearchParams({
-    link_id: linkId,
+    link_id: linkId.toString(),
     start: startDate.toISOString(),
     from: endDate.toISOString(),
     ...(filters.filterRobots && { bot: 'false' })
@@ -88,37 +105,18 @@ export const fetchLinkStats = async (filters: LinklyFilters): Promise<LinkStats[
     const statsPromises = links.map(async (link) => {
       const clicks = await fetchClicksForLink(link.id, filters, thirtyDaysAgo, today);
       
-      // Process clicks for this link
-      const todayClicks = clicks.filter(click => 
-        new Date(click.created_at).toDateString() === today.toDateString()
-      );
-
-      const thirtyDayClicks = clicks.filter(click => 
-        new Date(click.created_at) >= thirtyDaysAgo
-      );
-
-      // Generate sparkline data (last 7 days)
-      const sparklineData = Array.from({ length: 7 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toDateString();
-        return clicks.filter(click => 
-          new Date(click.created_at).toDateString() === dateStr
-        ).length;
-      }).reverse();
-
       // If countries filter is applied, filter clicks by country
       const filteredClicks = filters.countries?.length 
         ? clicks.filter(click => filters.countries?.includes(click.country_code))
         : clicks;
 
       return {
-        id: link.id,
-        name: link.title,
-        sparklineData,
-        today: todayClicks.length,
-        thirtyDay: thirtyDayClicks.length,
-        total: filteredClicks.length,
+        id: link.id.toString(),
+        name: link.name,
+        sparklineData: link.sparkline || Array(7).fill(0),
+        today: link.clicks_today,
+        thirtyDay: link.clicks_thirty_days,
+        total: link.clicks_total,
         isRobot: false,
         country: filteredClicks[0]?.country_code || 'Unknown'
       };
