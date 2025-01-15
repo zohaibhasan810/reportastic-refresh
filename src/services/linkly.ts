@@ -48,18 +48,18 @@ interface LinklyHQLinksResponse {
 }
 
 const API_BASE_URL = 'https://app.linklyhq.com/api/v1/workspace/144651';
-const API_KEY = '897678';
+const API_KEY = 'w+qgLG0yzgMgNQ9zQ==';
 const CSRF_TOKEN = 'figbLi8eAAoOPwU-HDAFKBU5QhsHGHcS0glXNQ-shjgRExwlgI-tb2aS';
 
 const fetchLinks = async (): Promise<LinklyHQLink[]> => {
   const queryParams = new URLSearchParams({
     page: '1',
-    page_size: '10'
+    page_size: '10',
+    api_key: API_KEY
   });
 
   const response = await fetch(`${API_BASE_URL}/list_links?${queryParams}`, {
     headers: {
-      'Authorization': `Bearer ${API_KEY}`,
       'Content-Type': 'application/json',
       'x-csrf-token': CSRF_TOKEN,
       'accept': 'application/json'
