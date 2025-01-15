@@ -17,12 +17,12 @@ export interface LinklyFilters {
 }
 
 interface LinklyHQClick {
-  id: string;
-  link_id: string;
-  link_title: string;
-  created_at: string;
-  is_bot: boolean;
-  country_code: string;
+  t: string;  // date in YYYY-MM-DD format
+  y: number;  // number of clicks for that date
+}
+
+interface LinklyHQClicksResponse {
+  traffic: LinklyHQClick[];
 }
 
 interface LinklyHQLink {
@@ -71,7 +71,7 @@ const fetchClicksForLink = async (
   filters: LinklyFilters,
   startDate: Date,
   endDate: Date
-): Promise<LinklyHQClick[]> => {
+): Promise<LinklyHQClicksResponse> => {
   const response = await fetch(`${API_BASE_URL}/clicks?` + new URLSearchParams({
     link_id: linkId.toString(),
     start: startDate.toISOString(),
@@ -103,22 +103,27 @@ export const fetchLinkStats = async (filters: LinklyFilters): Promise<LinkStats[
     
     // Then, fetch clicks for each link
     const statsPromises = links.map(async (link) => {
-      const clicks = await fetchClicksForLink(link.id, filters, thirtyDaysAgo, today);
+      const clicksResponse = await fetchClicksForLink(link.id, filters, thirtyDaysAgo, today);
       
+      // Calculate clicks based on the traffic data
+      const todayStr = today.toISOString().split('T')[0];
+      const todayClicks = clicksResponse.traffic.find(t => t.t === todayStr)?.y || 0;
+      
+      // Calculate total clicks from traffic data
+      const totalClicks = clicksResponse.traffic.reduce((sum, day) => sum + day.y, 0);
+
       // If countries filter is applied, filter clicks by country
-      const filteredClicks = filters.countries?.length 
-        ? clicks.filter(click => filters.countries?.includes(click.country_code))
-        : clicks;
+      const countryCode = filters.countries?.length ? filters.countries[0] : 'Unknown';
 
       return {
         id: link.id.toString(),
         name: link.name,
         sparklineData: link.sparkline || Array(7).fill(0),
-        today: link.clicks_today,
-        thirtyDay: link.clicks_thirty_days,
+        today: todayClicks,
+        thirtyDay: totalClicks,
         total: link.clicks_total,
         isRobot: false,
-        country: filteredClicks[0]?.country_code || 'Unknown'
+        country: countryCode
       };
     });
 
