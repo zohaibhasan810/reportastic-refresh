@@ -54,7 +54,7 @@ const Reports = () => {
 
   const exportData = (format: "csv" | "json") => {
     const data = format === "csv" 
-      ? `Name,Today,30 Day,Total,Country\n${filteredLinks.map(l => `${l.name},${l.today},${l.thirtyDay},${l.total},${l.country}`).join("\n")}`
+      ? `Name,Today,30 Day,Bots Excluded,Country\n${filteredLinks.map(l => `${l.name},${l.today},${l.thirtyDay},${l.total},${l.country}`).join("\n")}`
       : JSON.stringify(filteredLinks, null, 2);
     
     const blob = new Blob([data], { type: format === "csv" ? "text/csv" : "application/json" });
@@ -185,7 +185,7 @@ const Reports = () => {
                         30 Day
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total
+                        Bots Excluded
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Country
